@@ -33,6 +33,7 @@ class TicketMasterClient():
                     response = await client.get(url, params=params)
                     response.raise_for_status()
                     data = response.json()
+                    logger.info(f"Successfully pulled {endpoint} data from ticketmaster")
                     return data
 
                 except (httpx.RequestError, httpx.HTTPStatusError, httpx.HTTPError, httpx.NetworkError) as e:

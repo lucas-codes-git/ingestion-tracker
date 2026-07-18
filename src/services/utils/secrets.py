@@ -6,6 +6,7 @@ load_dotenv()
 def fetch_secrets() -> dict:
     return {
         "ticketMasterKey": os.getenv("apikey").strip(),
+        "supadburl": os.getenv("supadburl").strip(),
         "supakey": os.getenv("supakey").strip(),
         "supaurl": os.getenv("supaurl").strip(),
         "dbname": os.getenv("dbname").strip(),

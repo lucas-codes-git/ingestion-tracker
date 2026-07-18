@@ -1,6 +1,5 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, status, Request
 from src.data_workflows.pipelines.sources.ticketmaster.events.bronze.main import run_test
-import asyncio
 
 router = APIRouter(
     prefix="/api/v1",
@@ -15,10 +14,12 @@ async def get_ticketmaster_attractions():
     }
 
 
-@router.post("/ticketmaster/events")
-async def get_ticketmaster_events():
-    result = await run_test()
-    return result, 200
+@router.post("/ticketmaster/events", status_code=status.HTTP_202_ACCEPTED)
+async def get_ticketmaster_events(request: Request):
+    await run_test(request.app.state.tracker)
+    return {
+        "message": "ticketmaster/events route completed",
+    }
 
 
 @router.post("/ticketmaster/genres")

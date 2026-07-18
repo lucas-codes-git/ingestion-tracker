@@ -1,4 +1,4 @@
-import psycopg
+from psycopg_pool import ConnectionPool
 from src.services.utils import fetch_secrets
 from src.services.utils import JobStatus
 
@@ -6,18 +6,23 @@ from src.services.utils import JobStatus
 class IngestionTracker:
     def __init__(self):
         self.env = fetch_secrets()
-        self.DBPARAMS = {
-            "host": "ingestion_db",
-            "dbname": self.env["dbname"],
-            "user": self.env["dbuser"],
-            "password": self.env["dbpass"],
-            "port": 5432
-        }
-
+        self.pool = ConnectionPool(
+            conninfo=self.env["supadburl"],
+            min_size=1,
+            max_size=2,
+            open=False
+        )
         self.STATUS = JobStatus
         
+    def start(self):
+        self.pool.open()
+        self.pool.wait()
+        
+    def close(self):
+        self.pool.close()
+        
     def create_ingestion_tracker_table(self) -> None:
-        with psycopg.connect(**self.DBPARAMS) as conn:
+        with self.pool.connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
                     CREATE EXTENSION IF NOT EXISTS pgcrypto;
@@ -58,7 +63,7 @@ class IngestionTracker:
             file_path: str
         ) -> str | None:
 
-        with psycopg.connect(**self.DBPARAMS) as conn:
+        with self.pool.connection() as conn:
             with conn.cursor() as cur:
 
                 query = """
@@ -98,7 +103,7 @@ class IngestionTracker:
                 return inserted[0]
 
     def fetch_pending_bronze_files(self) -> list[tuple]:
-        with psycopg.connect(**self.DBPARAMS) as conn:
+        with self.pool.connection() as conn:
             with conn.cursor() as cur:
                 query = """
                     SELECT
@@ -119,7 +124,7 @@ class IngestionTracker:
                 
                 
     def fetch_pending_silver_files(self) -> list[dict]:
-        with psycopg.connect(**self.DBPARAMS) as conn:
+        with self.pool.connection() as conn:
             with conn.cursor() as cur:
                 query = """
                     SELECT
@@ -149,12 +154,12 @@ class IngestionTracker:
                 
                     files.append(file_record)
                 
-                return file_record
+                return files
         
 #               Bronze methods
 
     def start_bronze_job(self, ingestion_id: str) -> bool:
-        with psycopg.connect(**self.DBPARAMS) as conn:
+        with self.pool.connection() as conn:
             with conn.cursor() as cur:
                 
                 query = """
@@ -174,14 +179,14 @@ class IngestionTracker:
                         JobStatus.PENDING.value
                     )
                 )
-                
+                conn.commit()
                 if cur.rowcount == 0:
                     return False
                 return True
 
 
     def complete_bronze_job(self, ingestion_id: str) -> bool:
-        with psycopg.connect(**self.DBPARAMS) as conn:
+        with self.pool.connection() as conn:
             with conn.cursor() as cur:
                 
                 query = """
@@ -217,7 +222,7 @@ class IngestionTracker:
         ingestion_id: str,
         error_msg: str
     ) -> bool:
-        with psycopg.connect(**self.DBPARAMS) as conn:
+        with self.pool.connection() as conn:
             with conn.cursor() as cur:
                 
                 query = """
@@ -249,7 +254,7 @@ class IngestionTracker:
 #                   Silver methods
 
     def start_silver(self, ingestion_id: str) -> bool:
-        with psycopg.connect(**self.DBPARAMS) as conn:
+        with self.pool.connection() as conn:
             with conn.cursor() as cur:
                 
                 query = """
@@ -277,7 +282,7 @@ class IngestionTracker:
 
 
     def complete_silver(self, ingestion_id: str) -> bool:
-        with psycopg.connect(**self.DBPARAMS) as conn:
+        with self.pool.connection() as conn:
             with conn.cursor() as cur:
                 
                 query = """
@@ -313,7 +318,7 @@ class IngestionTracker:
         ingestion_id: str,
         error_msg: str
     ) -> bool:
-        with psycopg.connect(**self.DBPARAMS) as conn:
+        with self.pool.connection() as conn:
             with conn.cursor() as cur:
                 
                 query = """
