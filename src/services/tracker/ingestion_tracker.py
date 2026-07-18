@@ -118,7 +118,7 @@ class IngestionTracker:
                 return cur.fetchall()
                 
                 
-    def fetch_pending_silver_files(self) -> list[tuple]:
+    def fetch_pending_silver_files(self) -> list[dict]:
         with psycopg.connect(**self.DBPARAMS) as conn:
             with conn.cursor() as cur:
                 query = """
@@ -136,8 +136,21 @@ class IngestionTracker:
                     )
                 )
                 
-                return cur.fetchall()
-
+                rows = cur.fetchall()
+                
+                files = []
+                
+                for row in rows:
+                    file_record =  {
+                        "ingestion_id": row[0],
+                        "batch_id": row[1],
+                        "file_path": row[2]
+                    }
+                
+                    files.append(file_record)
+                
+                return file_record
+        
 #               Bronze methods
 
     def start_bronze_job(self, ingestion_id: str) -> bool:
