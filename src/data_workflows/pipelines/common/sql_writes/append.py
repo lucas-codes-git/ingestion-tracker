@@ -1,2 +1,0 @@
-#def append() -> str:
-#    pass

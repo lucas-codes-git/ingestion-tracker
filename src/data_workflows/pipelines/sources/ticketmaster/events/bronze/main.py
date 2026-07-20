@@ -1,32 +1,46 @@
 from src.services.clients import TicketMasterClient, SupaBaseClient
 from src.services.tracker import IngestionTracker
 from src.services.utils import build_batch_id, FileExtensions
+from src.data_workflows.pipelines.sources.ticketmaster.events.bronze import BRONZE_EVENTS_CONFIG
+from src.data_workflows.pipelines.common import retry_bronze_job
+from src.services.utils import fetch_secrets
 
 from hashlib import sha256
 import json
 import logging
 
-
-ticketmasterclient = TicketMasterClient()
-supaclient = SupaBaseClient()
+secrets = fetch_secrets()
 
 logger = logging.getLogger(__name__)
 
-ENDPOINT = "events"
+config = BRONZE_EVENTS_CONFIG
 
 
-async def run_test(tracker: IngestionTracker):
+async def run_test(
+    tracker: IngestionTracker,
+    ticketmaster: TicketMasterClient,
+    supabase: SupaBaseClient
+):
 
+    retry_files = await tracker.retry_failed_bronze_files(endpoint=config["endpoint"])
+    
+    for file in retry_files:
+        await retry_bronze_job(
+            tracker=tracker,
+            supabase=supabase,
+            file=file,
+            bucket_name=secrets["bucket_name"]
+        )
+    
     ingestion_id = None
 
     try:
-        data = await ticketmasterclient.fetch_data(
-            endpoint=ENDPOINT,
+        data = await ticketmaster.fetch_data(
+            endpoint=config["endpoint"],
             params={
-                "city": "Toronto",
-                "classificationName": "sports",
-                "countryCode": "CA",
-                "size": 10
+                "city": config["city"],
+                "countryCode": config["countryCode"],
+                "size": config["size"]
             }
         )
 
@@ -36,22 +50,23 @@ async def run_test(tracker: IngestionTracker):
         bytes_size = len(formatted_json)
 
         batch_id = build_batch_id(
-            source="ticketmaster",
-            endpoint=ENDPOINT,
+            source=config["source"],
+            endpoint=config["endpoint"],
             file_hash=content_hash,
             extension=FileExtensions.JSON.extension
         )
 
         file_path = (
-            f"ticketmaster/"
-            f"{ENDPOINT}/"
+            f"{config["source"]}/"
+            f"{config["endpoint"]}/"
             f"raw/"
             f"{batch_id}"
         )
 
-        ingestion_id = tracker.insert_job(
-            source_system="ticketmaster",
-            source_url=ticketmasterclient.build_url(endpoint=ENDPOINT),
+        ingestion_id = await tracker.insert_job(
+            source_system=config["source"],
+            source_url=ticketmaster.build_url(endpoint=config["endpoint"]),
+            endpoint=config["endpoint"],
             file_type=FileExtensions.JSON.extension,
             bytes_size=bytes_size,
             content_hash=content_hash,
@@ -67,7 +82,7 @@ async def run_test(tracker: IngestionTracker):
             return
 
 
-        bronze_started = tracker.start_bronze_job(
+        bronze_started = await tracker.start_bronze_job(
             ingestion_id
         )
 
@@ -79,18 +94,18 @@ async def run_test(tracker: IngestionTracker):
             return
 
 
-        supaclient.upload_file(
-            bucket_name="lucas-infra",
-            source_name="ticketmaster",
-            data_name=ENDPOINT,
+        supabase.upload_file(
+            bucket_name=secrets["bucket_name"],
+            source_name=config["source"],
+            data_name=config["endpoint"],
             clean_raw=False,
             file_name=batch_id,
             file_bytes=formatted_json,
-            file_type="application/json"
+            file_type=FileExtensions.JSON.content_type()
         )
 
 
-        bronze_completed = tracker.complete_bronze_job(
+        bronze_completed = await tracker.complete_bronze_job(
             ingestion_id
         )
 

@@ -1,0 +1,1 @@
+from .config import BRONZE_EVENTS_CONFIG

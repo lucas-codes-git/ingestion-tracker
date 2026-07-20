@@ -16,7 +16,11 @@ async def get_ticketmaster_attractions():
 
 @router.post("/ticketmaster/events", status_code=status.HTTP_202_ACCEPTED)
 async def get_ticketmaster_events(request: Request):
-    await run_test(request.app.state.tracker)
+    await run_test(
+        tracker=request.app.state.tracker,
+        ticketmaster=request.app.state.ticketmaster,
+        supabase=request.app.state.supabase   
+    )
     return {
         "message": "ticketmaster/events route completed",
     }

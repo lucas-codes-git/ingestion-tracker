@@ -11,5 +11,6 @@ def fetch_secrets() -> dict:
         "supaurl": os.getenv("supaurl").strip(),
         "dbname": os.getenv("dbname").strip(),
         "dbpass": os.getenv("dbpass").strip(),
-        "dbuser": os.getenv("dbuser").strip()
+        "dbuser": os.getenv("dbuser").strip(),
+        "bucket_name": os.getenv("bucket_name").strip()
     }
