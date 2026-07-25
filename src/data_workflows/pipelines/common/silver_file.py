@@ -2,12 +2,14 @@ from src.services.tracker import IngestionTracker
 from src.services.clients import SupaBaseClient
 from src.services.utils import fetch_secrets
 
-def prep_silver_files(endpoint: str) -> list[bytes]:
-    tracker = IngestionTracker()
-    supa = SupaBaseClient()
+async def prep_silver_files(
+        endpoint: str,
+        tracker: IngestionTracker,
+        supa: SupaBaseClient
+    ) -> list[dict]:
     secrets = fetch_secrets()
     
-    files = tracker.fetch_pending_silver_files()
+    files = await tracker.fetch_pending_silver_files()
     
     silver_files = []
     

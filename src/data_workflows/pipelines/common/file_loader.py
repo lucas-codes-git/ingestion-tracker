@@ -22,9 +22,4 @@ def load_file(file_bytes: bytes, file_type: FileExtensions) -> pl.DataFrame:
     else:
         raise ValueError(f"Unsupported file type: {file_type}")
 
-    for col in df.columns:
-        df = df.with_columns(
-            pl.col(col).cast(pl.String)
-        )
-
     return df

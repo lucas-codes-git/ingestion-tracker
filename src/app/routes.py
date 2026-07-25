@@ -1,5 +1,6 @@
 from fastapi import APIRouter, status, Request
 from src.data_workflows.pipelines.sources.ticketmaster.events.bronze.main import run_test
+from src.data_workflows.pipelines.sources.ticketmaster.events.silver.main import run_silver_ticketmaster_events
 
 router = APIRouter(
     prefix="/api/v1",
@@ -20,6 +21,10 @@ async def get_ticketmaster_events(request: Request):
         tracker=request.app.state.tracker,
         ticketmaster=request.app.state.ticketmaster,
         supabase=request.app.state.supabase   
+    )
+    await run_silver_ticketmaster_events(
+        tracker=request.app.state.tracker,
+        supa=request.app.state.supabase
     )
     return {
         "message": "ticketmaster/events route completed",
