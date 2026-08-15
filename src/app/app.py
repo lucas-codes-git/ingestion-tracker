@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from src.app.routes import router
+from src.app.admin_routes import router as admin_router
 from src.services.database import pool
 from src.services.utils.logs import setup_logging
 from src.services.tracker import IngestionTracker
@@ -42,6 +43,7 @@ app = FastAPI(
 )
 
 app.include_router(router)
+app.include_router(admin_router)
 
 
 @app.get("/")

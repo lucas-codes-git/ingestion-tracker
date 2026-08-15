@@ -29,10 +29,3 @@ async def get_ticketmaster_events(request: Request):
     return {
         "message": "ticketmaster/events route completed",
     }
-
-
-@router.post("/ticketmaster/genres")
-async def get_ticketmaster_genres():
-    return {
-        "message": "ticketmaster genres endpoint"
-    }
