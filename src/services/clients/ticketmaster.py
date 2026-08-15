@@ -27,28 +27,28 @@ class TicketMasterClient():
         
         logger.info(f"Starting request to ticketmaster for: {endpoint} data")
         
-        async with httpx.AsyncClient() as client:
-            for attempt in range(MAX_RETRIES):
-                try:
-                    response = await client.get(url, params=params)
-                    response.raise_for_status()
-                    data = response.json()
-                    return data
+        for attempt in range(MAX_RETRIES):
+            try:
+                response = await self.client.get(url, params=params)
+                response.raise_for_status()
+                data = response.json()
+                logger.info(f"Successfully pulled {endpoint} data from ticketmaster")
+                return data
 
-                except (httpx.RequestError, httpx.HTTPStatusError, httpx.HTTPError, httpx.NetworkError) as e:
-                    remaining = MAX_RETRIES - attempt - 1
-                    attempt += 1
+            except (httpx.RequestError, httpx.HTTPStatusError, httpx.HTTPError, httpx.NetworkError) as e:
+                remaining = MAX_RETRIES - attempt - 1
+                attempt += 1
 
-                    logger.warning(
-                        f"Failed to pull {endpoint} data on attempt: {attempt}/{MAX_RETRIES},\n"
-                        f"Remaining attempts: {remaining},\n"
-                        f"error: {e}"
-                    )
+                logger.warning(
+                    f"Failed to pull {endpoint} data on attempt: {attempt}/{MAX_RETRIES},\n"
+                    f"Remaining attempts: {remaining},\n"
+                    f"error: {e}"
+                )
 
-                    await asyncio.sleep(2 ** attempt - 1)
+                await asyncio.sleep(2 ** attempt - 1)
 
-                    if attempt == MAX_RETRIES:
-                        raise
+                if attempt == MAX_RETRIES:
+                    raise
                     
     async def close(self):
         await self.client.aclose()

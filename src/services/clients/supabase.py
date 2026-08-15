@@ -31,15 +31,8 @@ class SupaBaseClient:
             file_options={"content-type": file_type}
         )
         
-    def download_file(self, bucket_name: str, source_name: str, data_name: str, clean_raw: bool, file_name: str) -> bytes:
-        path = self.build_folder_path(
-            source_name,
-            data_name,
-            file_name,
-            clean_raw
-        )
-        
-        file_bytes = self.client.storage.from_(bucket_name).download(path)
+    def download_file(self, bucket_name: str, file_path: str) -> bytes:
+        file_bytes = self.client.storage.from_(bucket_name).download(file_path)
         return file_bytes
-        
+
         

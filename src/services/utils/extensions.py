@@ -16,9 +16,4 @@ class JobStatus(Enum):
     PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
-
-class PipelineStage(Enum):
-    BRONZE = "bronze_status"
-    SILVER = "silver_status"
-    GOLD = "gold_status"
     

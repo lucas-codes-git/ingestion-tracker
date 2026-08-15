@@ -30,8 +30,6 @@ logs/
 # Local pipeline data
 data/
 raw/
-bronze/
-silver/
 
 # OS files
 .DS_Store
