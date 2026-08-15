@@ -223,10 +223,10 @@ class IngestionTracker:
                     SET
                         bronze_status = %s,
                         bronze_finished_at = NOW(),
-                        bronze_run_duration_seconds = 
-                        EXTRACT(
-                            EPOCH FROM
-                            (NOW() - bronze_started_at)
+                        bronze_run_duration_seconds = (
+                            EXTRACT(
+                                EPOCH FROM (NOW() - bronze_started_at)
+                            )::BIGINT
                         )
                     WHERE ingestion_id = %s
                     AND bronze_status = %s
@@ -319,10 +319,10 @@ class IngestionTracker:
                     SET
                         silver_status = %s,
                         silver_finished_at = NOW(),
-                        silver_run_duration_seconds = 
-                        EXTRACT(
-                            EPOCH FROM
-                            (NOW() - silver_started_at)
+                        silver_run_duration_seconds = (
+                            EXTRACT(
+                                EPOCH FROM (NOW() - silver_started_at)
+                            )::BIGINT
                         )
                     WHERE ingestion_id = %s
                     AND silver_status = %s
@@ -341,6 +341,167 @@ class IngestionTracker:
                 if cur.rowcount == 0:
                     return False
                 return True
+
+    async def retry_failed_silver_files(self, endpoint: str) -> list[dict]:
+        async with pool.connection() as conn:
+            async with conn.cursor() as cur:
+                query = """
+                    UPDATE ingestion_tracker
+                    SET
+                        silver_status = %s,
+                        error_msg = NULL,
+                        silver_started_at = NULL,
+                        silver_finished_at = NULL,
+                        silver_run_duration_seconds = NULL
+                    WHERE endpoint = %s
+                    AND silver_status = %s
+                    RETURNING
+                        ingestion_id,
+                        batch_id,
+                        file_path,
+                        endpoint
+                """
+
+                await cur.execute(query,(JobStatus.PENDING.value, endpoint, JobStatus.FAILED.value))
+                rows = await cur.fetchall()
+
+            await conn.commit()
+
+        files = []
+        for row in rows:
+            files.append(
+                {
+                    "ingestion_id": row[0],
+                    "batch_id": row[1],
+                    "file_path": row[2],
+                    "endpoint": row[3]
+                }
+            )
+        return files
+
+    async def fetch_failed_silver_files(self, endpoint: str) -> list[dict]:
+        async with pool.connection() as conn:
+            async with conn.cursor() as cur:
+                query = """
+                    SELECT
+                        ingestion_id,
+                        batch_id,
+                        file_path,
+                        endpoint,
+                        error_msg
+                    FROM ingestion_tracker
+                    WHERE endpoint = %s
+                    AND silver_status = %s
+                """
+
+                await cur.execute(query, (endpoint, JobStatus.FAILED.value))
+                rows = await cur.fetchall()
+
+        files = []
+        for row in rows:
+            files.append(
+                {
+                    "ingestion_id": row[0],
+                    "batch_id": row[1],
+                    "file_path": row[2],
+                    "endpoint": row[3],
+                    "error_msg": row[4]
+                }
+            )
+
+        return files
+
+    async def reset_job(self, ingestion_id: str) -> bool:
+        """Reset both bronze and silver statuses/timestamps for a job to 'pending'."""
+        async with pool.connection() as conn:
+            async with conn.cursor() as cur:
+                query = """
+                    UPDATE ingestion_tracker
+                    SET
+                        bronze_status = %s,
+                        silver_status = %s,
+                        error_msg = NULL,
+                        bronze_started_at = NULL,
+                        bronze_finished_at = NULL,
+                        silver_started_at = NULL,
+                        silver_finished_at = NULL,
+                        bronze_run_duration_seconds = NULL,
+                        silver_run_duration_seconds = NULL
+                    WHERE ingestion_id = %s
+                    RETURNING ingestion_id
+                """
+
+                await cur.execute(query, (JobStatus.PENDING.value, JobStatus.PENDING.value, ingestion_id))
+                await conn.commit()
+
+                if cur.rowcount == 0:
+                    return False
+                return True
+
+    async def get_job_by_batch_id(self, batch_id: str) -> dict | None:
+        async with pool.connection() as conn:
+            async with conn.cursor() as cur:
+                query = """
+                    SELECT
+                        ingestion_id,
+                        batch_id,
+                        file_path,
+                        bronze_status,
+                        silver_status,
+                        endpoint
+                    FROM ingestion_tracker
+                    WHERE batch_id = %s
+                """
+
+                await cur.execute(query, (batch_id,))
+                row = await cur.fetchone()
+
+        if row is None:
+            return None
+
+        return {
+            "ingestion_id": row[0],
+            "batch_id": row[1],
+            "file_path": row[2],
+            "bronze_status": row[3],
+            "silver_status": row[4],
+            "endpoint": row[5]
+        }
+
+    async def retry_failed_silver_by_batch(self, batch_id: str) -> dict | None:
+        async with pool.connection() as conn:
+            async with conn.cursor() as cur:
+                query = """
+                    UPDATE ingestion_tracker
+                    SET
+                        silver_status = %s,
+                        error_msg = NULL,
+                        silver_started_at = NULL,
+                        silver_finished_at = NULL,
+                        silver_run_duration_seconds = NULL
+                    WHERE batch_id = %s
+                    AND silver_status = %s
+                    RETURNING
+                        ingestion_id,
+                        batch_id,
+                        file_path,
+                        endpoint
+                """
+
+                await cur.execute(query, (JobStatus.PENDING.value, batch_id, JobStatus.FAILED.value))
+                row = await cur.fetchone()
+
+            await conn.commit()
+
+        if row is None:
+            return None
+
+        return {
+            "ingestion_id": row[0],
+            "batch_id": row[1],
+            "file_path": row[2],
+            "endpoint": row[3]
+        }
 
     async def fail_silver(
         self,

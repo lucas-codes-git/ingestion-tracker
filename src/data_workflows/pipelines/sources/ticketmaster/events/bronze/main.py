@@ -1,6 +1,7 @@
 from src.services.clients import TicketMasterClient, SupaBaseClient
 from src.services.tracker import IngestionTracker
 from src.services.utils import build_batch_id, FileExtensions
+from src.services.utils.extensions import JobStatus
 from src.data_workflows.pipelines.sources.ticketmaster.events.bronze import BRONZE_EVENTS_CONFIG
 from src.data_workflows.pipelines.common import retry_bronze_job
 from src.services.utils import fetch_secrets
@@ -79,6 +80,22 @@ async def run_test(
                 "File already ingested, skipping: %s",
                 batch_id
             )
+            # Check existing job; if silver failed or bronze completed but silver not completed,
+            # mark silver for retry and trigger the silver pipeline.
+            job = await tracker.get_job_by_batch_id(batch_id)
+            if job:
+                # If silver previously failed, reset to pending
+                if job.get("silver_status") == JobStatus.FAILED.value:
+                    await tracker.retry_failed_silver_by_batch(batch_id)
+
+                # If bronze already completed and silver not completed, run silver pipeline now
+                if job.get("bronze_status") == JobStatus.COMPLETED.value and job.get("silver_status") != JobStatus.COMPLETED.value:
+                    from src.data_workflows.pipelines.sources.ticketmaster.events.silver.main import run_silver_ticketmaster_events
+                    await run_silver_ticketmaster_events(
+                        tracker=tracker,
+                        supa=supabase
+                    )
+
             return
 
 
@@ -128,7 +145,7 @@ async def run_test(
         )
 
         if ingestion_id:
-            tracker.fail_bronze(
+            await tracker.fail_bronze(
                 ingestion_id,
                 str(e)
             )
